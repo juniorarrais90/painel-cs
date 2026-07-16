@@ -167,8 +167,11 @@
   <button class="btn btn-ghost active" id="vKanban" onclick="setView('kanban')">Kanban</button>
   <button class="btn btn-ghost" id="vTable" onclick="setView('table')">Tabela</button>
   <button class="btn btn-ghost" onclick="carregar(true)" title="Buscar atualizações da planilha">⟳ Atualizar</button>
-  <input class="search" id="q" placeholder="Buscar por nome, CPF ou origem…" oninput="render()">
+  <input class="search" id="q" placeholder="Buscar por nome ou CPF…" oninput="render()">
   <select class="filter" id="fStage" onchange="render()"><option value="">Todas as etapas</option></select>
+  <select class="filter" id="fOrigem" onchange="render()"><option value="">Todas as origens</option></select>
+  <select class="filter" id="fTipo" onchange="render()"><option value="">Todos os benefícios</option></select>
+  <select class="filter" id="fResp" onchange="render()"><option value="">Todos os responsáveis</option></select>
   <select class="filter" id="fPend" onchange="render()">
     <option value="">Todas as pendências</option>
     <option value="doc">Documentação pendente</option>
@@ -218,15 +221,16 @@
           </select>
         </div>
         <div class="fld"><label>Via de ingresso</label>
-          <select id="nVia"><option>Administrativa</option><option>Judicial</option></select>
+          <select id="nVia"><option selected>A definir pelo jurídico</option><option>Administrativa</option><option>Judicial</option></select>
         </div>
         <div class="fld"><label>Origem</label>
-          <select id="nOrigem">
-            <option>Redes sociais</option><option>Tráfego Pago (Campanha)</option>
+          <select id="nOrigem" onchange="toggleCampanha()">
+            <option>Tráfego pago</option><option>Redes sociais (orgânico)</option>
             <option>Indicação de cliente</option><option>Parceira</option>
             <option>Escritório físico</option><option>Outra</option>
           </select>
         </div>
+        <div class="fld" id="campField" style="display:none"><label>Nome da campanha / anúncio</label><input id="nCampanha" placeholder="Ex.: Campanha B94 julho — vídeo sequela"></div>
         <div class="fld"><label>Honorários acordados</label><input id="nValor" placeholder="Ex.: 30% do retroativo"></div>
         <div class="fld"><label>Responsável Comercial</label><select id="nRespCom"></select></div>
         <div class="fld"><label>Responsável CS</label><select id="nRespCS"></select></div>
@@ -240,7 +244,65 @@
           <div class="fld"><label>Data provável do parto / nascimento</label><input type="date" id="nDpp"></div>
         </div>
       </div>
-      <div class="fld" style="margin-top:12px"><label>Observações para a CS</label><textarea id="nObs" style="height:70px"></textarea></div>
+      <div id="b94Block" style="display:none;margin-top:12px;border:1px solid var(--gold);border-radius:10px;padding:12px;background:#FDFAF2">
+        <div style="font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Auxílio-acidente (B94) — triagem do comercial</div>
+        <div class="grid2">
+          <div class="fld"><label>Classificação da triagem *</label>
+            <select id="nB94Triagem">
+              <option value="">Selecione…</option>
+              <option>🟢 Verde</option><option>🟡 Amarelo</option><option>🔴 Vermelho</option>
+            </select>
+          </div>
+          <div class="fld"><label>Data do acidente (mês/ano)</label><input type="month" id="nB94Data"></div>
+          <div class="fld"><label>Situação na data do acidente</label>
+            <select id="nB94Sit" onchange="toggleB94Alerta()">
+              <option value="">Selecione…</option>
+              <option>CLT</option><option>Doméstico</option><option>Avulso</option>
+              <option>Segurado especial (rural)</option><option>Desempregado (período de graça)</option>
+              <option>Autônomo / MEI</option><option>Facultativo</option>
+            </select>
+          </div>
+          <div class="fld"><label>Recebeu auxílio-doença pelo acidente?</label>
+            <select id="nB94B31" onchange="toggleB94NB()">
+              <option value="">Selecione…</option>
+              <option>Sim</option><option>Não</option><option>Não sabe</option>
+            </select>
+          </div>
+        </div>
+        <div id="b94Alerta" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:12px;font-weight:600">⚠ Atenção: autônomo/MEI e facultativo não têm direito ao auxílio-acidente (art. 18, §1º, Lei 8.213/91). Confirme a situação antes de prosseguir — caso para revisão do jurídico.</div>
+        <div id="b94NBFields" style="display:none;margin-top:8px" class="grid2">
+          <div class="fld"><label>NB do auxílio-doença (se souber)</label><input id="nB94NB" placeholder="Ex.: 631.000.000-0"></div>
+          <div class="fld"><label>Data de cessação (se souber)</label><input type="date" id="nB94Cessacao"></div>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <div class="fld"><label>Documentação médica</label>
+            <select id="nB94Doc" onchange="toggleB94Previdas()">
+              <option value="">Selecione…</option>
+              <option>Completa</option><option>Parcial</option><option>Nenhuma</option>
+            </select>
+          </div>
+          <div class="fld"><label>Tipo de acidente</label>
+            <select id="nB94TipoAc">
+              <option value="">Selecione…</option>
+              <option>Trabalho</option><option>Trânsito</option>
+              <option>Doméstico / outros</option><option>Doença ocupacional</option>
+            </select>
+          </div>
+          <div class="fld"><label>Já pediu o B94 e foi negado?</label>
+            <select id="nB94Negado">
+              <option value="">Selecione…</option>
+              <option>Não</option><option>Sim, com carta de indeferimento</option><option>Sim, sem carta</option>
+            </select>
+          </div>
+          <div class="fld" id="b94PrevidasField" style="display:none">
+            <label style="visibility:hidden">.</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;margin-top:6px">
+              <input type="checkbox" id="nB94Previdas" checked style="width:17px;height:17px;accent-color:var(--gold)"> Avaliar laudo Previdas
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="fld" style="margin-top:12px"><label>Observações para a CS</label><textarea id="nObs" style="height:70px" placeholder="Resumo do caso e combinados com o cliente…"></textarea></div>
       <div style="margin-top:16px;display:flex;gap:8px">
         <button class="btn btn-primary" onclick="addClient()">Cadastrar e enviar para a CS</button>
         <button class="btn btn-ghost" onclick="closeModals()">Cancelar</button>
@@ -262,6 +324,8 @@ const STAGES = ['Recebido do Comercial','Documentação','Onboarding','Concluíd
 const STAGE_COLORS = ['#1A56DB','#B4690E','#7C3AED','#1E8E3E'];
 const DOCS_PADRAO = ['Contrato de honorários','Procuração','Declaração de hipossuficiência','Termo de consentimento LGPD'];
 const OB_PADRAO = ['Grupo de WhatsApp criado','Documentação na pasta do cliente no Google Drive','Fluxo de atendimento/processo explicado','Cliente cadastrado no ADVBox','Tarefas criadas no ADVBox e enviadas ao setor responsável'];
+const TIPOS = ['Aposentadoria','Auxílio-doença (B31)','BPC/LOAS','Auxílio-acidente (B94)','Pensão por morte','Salário-maternidade','Trabalhista','Outro'];
+const ORIGENS = ['Tráfego pago','Redes sociais (orgânico)','Indicação de cliente','Parceira','Escritório físico','Outra'];
 const PREFS_KEY = 'arrais-painel-prefs-v2';
 
 let prefs = { nome:'', pin:'', vista:'' };
@@ -350,6 +414,18 @@ function sair() { prefs.pin = ''; savePrefs(); location.reload(); }
 function montarSelects() {
   document.getElementById('nRespCom').innerHTML = equipe.filter(p=>p.setor==='Comercial').map(p=>`<option>${p.nome}</option>`).join('');
   document.getElementById('nRespCS').innerHTML = equipe.filter(p=>p.setor==='CS').map(p=>`<option>${p.nome}</option>`).join('');
+  fillFilter('fResp','Todos os responsáveis', equipe.map(p=>p.nome));
+}
+function fillFilter(id, label, opts) {
+  const el = document.getElementById(id);
+  const atual = el.value;
+  el.innerHTML = `<option value="">${label}</option>` + opts.map(o=>`<option>${esc(o)}</option>`).join('');
+  el.value = atual; // mantém a seleção se a opção ainda existir
+}
+function montarFiltrosDeDados() {
+  const uniq = arr => [...new Set(arr.filter(Boolean))];
+  fillFilter('fOrigem','Todas as origens', uniq([...ORIGENS, ...state.clients.map(c=>c.origem)]));
+  fillFilter('fTipo','Todos os benefícios', uniq([...TIPOS, ...state.clients.map(c=>c.tipo)]));
 }
 
 /* ===== Dados ===== */
@@ -358,6 +434,7 @@ async function carregar(mostrar) {
     if (mostrar) sync('Carregando…');
     const j = await api('list');
     state.clients = j.clients || [];
+    montarFiltrosDeDados();
     sync('Atualizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
     render();
   } catch(e) { sync(''); toast('Falha ao carregar: ' + e.message); }
@@ -393,8 +470,14 @@ function filtered() {
   const q = document.getElementById('q').value.toLowerCase();
   const fs = document.getElementById('fStage').value;
   const fp = document.getElementById('fPend').value;
+  const fo = document.getElementById('fOrigem').value;
+  const ft = document.getElementById('fTipo').value;
+  const fr = document.getElementById('fResp').value;
   return state.clients.filter(c => {
-    if (q && !(c.nome+' '+(c.cpf||'')+' '+(c.origem||'')).toLowerCase().includes(q)) return false;
+    if (q && !(c.nome+' '+(c.cpf||'')).toLowerCase().includes(q)) return false;
+    if (fo && (c.origem||'') !== fo) return false;
+    if (ft && (c.tipo||'') !== ft) return false;
+    if (fr && c.respCom !== fr && c.respCS !== fr) return false;
     if (fs && c.stage !== fs) return false;
     if (fp==='doc' && c.kit.status==='assinado') return false;
     if (fp==='ob' && !c.ob.some(o=>!o.feito)) return false;
@@ -471,6 +554,7 @@ function cardHtml(c) {
     <div class="nm">${esc(c.nome)}</div>
     <div class="meta">${[c.tipo, c.via ? 'Via ' + c.via.toLowerCase() : '', c.origem].filter(Boolean).map(esc).join(' · ')}</div>
     <div class="badges">
+      ${c.b94 && c.b94.triagem ? `<span class="badge ${c.b94.triagem.includes('Verde')?'b-green':c.b94.triagem.includes('Amarelo')?'b-amber':'b-red'}">${esc(c.b94.triagem)}</span>` : ''}
       <span class="badge ${k.cls}">${k.label}</span>
       <span class="badge ${o.cls}">Onb. ${o.f}/${o.t}</span>
       ${c.contratoAssinadoEm ? `<span class="badge b-green">✔ Contrato ${new Date(c.contratoAssinadoEm+'T12:00:00').toLocaleDateString('pt-BR')}</span>` : ''}
@@ -481,16 +565,17 @@ function cardHtml(c) {
 }
 function renderTable(list) {
   document.getElementById('tableWrap').innerHTML = `<table>
-    <thead><tr><th>Cliente</th><th>Tipo de caso</th><th>Etapa</th><th>Docs</th><th>Contrato assinado</th><th>Onboarding</th><th>Dias na etapa</th><th>Resp. CS</th><th>Entrada</th></tr></thead>
+    <thead><tr><th>Cliente</th><th>Tipo de caso</th><th>Origem</th><th>Etapa</th><th>Docs</th><th>Contrato assinado</th><th>Onboarding</th><th>Dias na etapa</th><th>Resp. Comercial</th><th>Resp. CS</th><th>Entrada</th></tr></thead>
     <tbody>${list.map(c => {
       const k = kitInfo(c), o = obSummary(c);
       return `<tr class="row" onclick="openDetail('${c.id}')">
         <td><b>${esc(c.nome)}</b></td><td>${esc(c.tipo)}</td>
+        <td>${esc(c.origem||'—')}${c.campanha?`<br><span style="font-size:11px;color:var(--muted)">${esc(c.campanha)}</span>`:''}</td>
         <td><span class="badge b-blue">${c.stage}</span></td>
         <td><span class="badge ${k.cls}">${k.label}</span></td>
         <td>${c.contratoAssinadoEm ? new Date(c.contratoAssinadoEm+'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
         <td><span class="badge ${o.cls}">${o.f}/${o.t}</span></td>
-        <td>${daysIn(c)}</td><td>${esc(c.respCS||'—')}</td><td>${fmtD(c.criadoEm)}</td>
+        <td>${daysIn(c)}</td><td>${esc(c.respCom||'—')}</td><td>${esc(c.respCS||'—')}</td><td>${fmtD(c.criadoEm)}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
 }
@@ -545,9 +630,10 @@ function fillDetail() {
     <div class="sec"><h3>Dados do cliente</h3>
       <div class="grid2">
         ${fld(c,'cpf','CPF')} ${fld(c,'tel','WhatsApp')}
-        ${fld(c,'tipo','Tipo de caso')}
-        ${fldSel(c,'via','Via de ingresso',['Administrativa','Judicial'])}
-        ${fld(c,'origem','Origem')}
+        ${fldSel(c,'tipo','Tipo de caso',TIPOS)}
+        ${fldSel(c,'via','Via de ingresso',['A definir pelo jurídico','Administrativa','Judicial'])}
+        ${fldSel(c,'origem','Origem',ORIGENS)}
+        ${c.origem==='Tráfego pago' || c.campanha ? fld(c,'campanha','Campanha / anúncio') : ''}
         ${fld(c,'valor','Honorários')}
         ${fldSel(c,'respCom','Resp. Comercial',comOpts)}
         ${fldSel(c,'respCS','Resp. CS',csOpts)}
@@ -557,6 +643,7 @@ function fillDetail() {
         <div class="fld"><label>Data provável do parto / nascimento</label><input type="date" value="${esc(c.dpp||'')}" onchange="setField('dpp',this.value)"></div>` : ''}
       </div>
     </div>
+    ${c.tipo==='Auxílio-acidente (B94)' ? b94SecHtml(c) : ''}
     <div class="sec"><h3>Documentação — Tramitação Inteligente</h3>
       <div class="doc-row" style="grid-template-columns:170px 1fr 150px">
         <select class="st-${c.kit.status}" onchange="setKit('status',this.value)">
@@ -599,6 +686,39 @@ function fillDetail() {
       </div>
     </div>`;
 }
+function b94SecHtml(c) {
+  const b = c.b94 || {};
+  const sel = (k,l,opts) => `<div class="fld"><label>${l}</label><select onchange="setB94('${k}',this.value)">
+    <option value="" ${!b[k]?'selected':''}>—</option>
+    ${b[k]&&!opts.includes(b[k])?`<option selected>${esc(b[k])}</option>`:''}
+    ${opts.map(o=>`<option ${b[k]===o?'selected':''}>${o}</option>`).join('')}
+  </select></div>`;
+  const triagemBadge = b.triagem
+    ? `<span class="badge ${b.triagem.includes('Verde')?'b-green':b.triagem.includes('Amarelo')?'b-amber':'b-red'}" style="text-transform:none;letter-spacing:0">${esc(b.triagem)}</span>`
+    : '<span class="badge b-gray" style="text-transform:none;letter-spacing:0">Triagem não classificada</span>';
+  const alerta = (b.situacao==='Autônomo / MEI' || b.situacao==='Facultativo')
+    ? `<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--red-bg);color:var(--red);font-size:12px;font-weight:600">⚠ ${esc(b.situacao)} na data do acidente — sem direito ao B94 em regra (art. 18, §1º, Lei 8.213/91). Revisão do jurídico.</div>` : '';
+  return `<div class="sec"><h3>Triagem — Auxílio-acidente (B94) ${triagemBadge}</h3>
+    <div class="grid2">
+      ${sel('triagem','Classificação da triagem',['🟢 Verde','🟡 Amarelo','🔴 Vermelho'])}
+      <div class="fld"><label>Data do acidente (mês/ano)</label><input type="month" value="${esc(b.dataAcidente||'')}" onchange="setB94('dataAcidente',this.value)"></div>
+      ${sel('situacao','Situação na data do acidente',['CLT','Doméstico','Avulso','Segurado especial (rural)','Desempregado (período de graça)','Autônomo / MEI','Facultativo'])}
+      ${sel('recebeuB31','Recebeu auxílio-doença pelo acidente?',['Sim','Não','Não sabe'])}
+      <div class="fld"><label>NB do auxílio-doença</label><input value="${esc(b.nb||'')}" onchange="setB94('nb',this.value)"></div>
+      <div class="fld"><label>Data de cessação</label><input type="date" value="${esc(b.cessacao||'')}" onchange="setB94('cessacao',this.value)"></div>
+      ${sel('docMedica','Documentação médica',['Completa','Parcial','Nenhuma'])}
+      ${sel('tipoAcidente','Tipo de acidente',['Trabalho','Trânsito','Doméstico / outros','Doença ocupacional'])}
+      ${sel('negado','Já pediu o B94 e foi negado?',['Não','Sim, com carta de indeferimento','Sim, sem carta'])}
+      <div class="fld"><label>Avaliar laudo Previdas</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer;padding:8px 0">
+          <input type="checkbox" ${b.previdas?'checked':''} onchange="setB94('previdas',this.checked)" style="width:17px;height:17px;accent-color:var(--gold)"> Sim, avaliar
+        </label>
+      </div>
+    </div>
+    ${alerta}
+  </div>`;
+}
+function setB94(k,v){ const c=cur(); if(!c) return; c.b94 = c.b94 || {}; c.b94[k]=v; persist(c); fillDetail(); render(); }
 const fld = (c,k,l) => `<div class="fld"><label>${l}</label><input value="${esc(c[k]||'')}" onchange="setField('${k}',this.value)"></div>`;
 const fldSel = (c,k,l,opts) => `<div class="fld"><label>${l}</label><select onchange="setField('${k}',this.value)">
   ${c[k]&&!opts.includes(c[k])?`<option selected>${esc(c[k])}</option>`:''}
@@ -660,17 +780,46 @@ function delClient(){
 }
 
 /* ===== Novo cliente ===== */
-function openNew(){ document.getElementById('ovNew').classList.add('open'); toggleMat(); }
+function openNew(){ document.getElementById('ovNew').classList.add('open'); toggleMat(); toggleCampanha(); }
 function toggleMat(){
-  const isMat = document.getElementById('nTipo').value === 'Salário-maternidade';
+  const tipo = document.getElementById('nTipo').value;
+  const isMat = tipo === 'Salário-maternidade';
+  const isB94 = tipo === 'Auxílio-acidente (B94)';
   document.getElementById('matBlock').style.display = isMat ? 'block' : 'none';
+  document.getElementById('b94Block').style.display = isB94 ? 'block' : 'none';
+  document.getElementById('nObs').placeholder = isB94
+    ? 'Sequela relatada · onde foi atendido na época · foto da sequela recebida (S/N)…'
+    : 'Resumo do caso e combinados com o cliente…';
+}
+function toggleCampanha(){
+  const isTP = document.getElementById('nOrigem').value === 'Tráfego pago';
+  document.getElementById('campField').style.display = isTP ? 'block' : 'none';
+}
+function toggleB94Alerta(){
+  const s = document.getElementById('nB94Sit').value;
+  document.getElementById('b94Alerta').style.display = (s==='Autônomo / MEI' || s==='Facultativo') ? 'block' : 'none';
+}
+function toggleB94NB(){
+  document.getElementById('b94NBFields').style.display = document.getElementById('nB94B31').value==='Sim' ? 'grid' : 'none';
+}
+function toggleB94Previdas(){
+  const nenhuma = document.getElementById('nB94Doc').value==='Nenhuma';
+  document.getElementById('b94PrevidasField').style.display = nenhuma ? 'block' : 'none';
+  document.getElementById('nB94Previdas').checked = nenhuma; // já chega marcado para decisão do advogado
 }
 function addClient(){
   const nEl = document.getElementById('nNome');
   const nome = nEl.value.trim();
   if(!nome){ nEl.style.borderColor='var(--red)'; nEl.focus(); nEl.oninput=()=>nEl.style.borderColor=''; return; }
+  if (document.getElementById('nTipo').value==='Auxílio-acidente (B94)' && !document.getElementById('nB94Triagem').value) {
+    const tEl = document.getElementById('nB94Triagem');
+    tEl.style.borderColor='var(--red)'; tEl.focus(); tEl.onchange=()=>tEl.style.borderColor='';
+    toast('Informe a classificação da triagem (verde/amarelo/vermelho) do caso B94.');
+    return;
+  }
   const obs = document.getElementById('nObs').value.trim();
   const isMat = document.getElementById('nTipo').value==='Salário-maternidade';
+  const isB94 = document.getElementById('nTipo').value==='Auxílio-acidente (B94)';
   const c = {
     id: 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     nome,
@@ -679,11 +828,24 @@ function addClient(){
     tipo: document.getElementById('nTipo').value,
     via: document.getElementById('nVia').value,
     origem: document.getElementById('nOrigem').value,
+    campanha: document.getElementById('nOrigem').value==='Tráfego pago' ? document.getElementById('nCampanha').value.trim() : '',
     valor: document.getElementById('nValor').value.trim(),
     respCom: document.getElementById('nRespCom').value,
     respCS: document.getElementById('nRespCS').value,
     guiaPagador: isMat ? document.getElementById('nGuia').value : '',
     dpp: isMat ? document.getElementById('nDpp').value : '',
+    b94: isB94 ? {
+      triagem: document.getElementById('nB94Triagem').value,
+      dataAcidente: document.getElementById('nB94Data').value,
+      situacao: document.getElementById('nB94Sit').value,
+      recebeuB31: document.getElementById('nB94B31').value,
+      nb: document.getElementById('nB94NB').value.trim(),
+      cessacao: document.getElementById('nB94Cessacao').value,
+      docMedica: document.getElementById('nB94Doc').value,
+      previdas: document.getElementById('nB94Doc').value==='Nenhuma' ? document.getElementById('nB94Previdas').checked : false,
+      tipoAcidente: document.getElementById('nB94TipoAc').value,
+      negado: document.getElementById('nB94Negado').value
+    } : null,
     stage: STAGES[0], criadoEm: Date.now(), movidoEm: Date.now(),
     docs: DOCS_PADRAO.slice(),
     kit: { status:'pendente', enviadoEm:null, link:'' },
@@ -692,9 +854,15 @@ function addClient(){
     comentarios: []
   };
   if (obs) c.comentarios.push({autor:userLabel(),setor:userSetor(),texto:obs,em:Date.now(),sys:false});
+  if (c.b94 && (c.b94.situacao==='Autônomo / MEI' || c.b94.situacao==='Facultativo'))
+    c.comentarios.push({autor:'Sistema',setor:'',texto:`⚠ B94 com situação "${c.b94.situacao}" na data do acidente — segurado sem direito ao auxílio-acidente em regra (art. 18, §1º, Lei 8.213/91). Revisão do jurídico necessária.`,em:Date.now(),sys:true});
+  if (c.b94 && c.b94.docMedica==='Nenhuma' && c.b94.previdas)
+    c.comentarios.push({autor:'Sistema',setor:'',texto:'Sem documentação médica — marcado para avaliar laudo Previdas (decisão do advogado).',em:Date.now(),sys:true});
   c.comentarios.push({autor:'Sistema',setor:'',texto:`Cliente cadastrado por ${userLabel()}${userSetor()?' ('+userSetor()+')':''} e enviado para a CS.`,em:Date.now(),sys:true});
   state.clients.unshift(c); persist(c); closeModals(); render();
-  ['nNome','nCpf','nTel','nValor','nObs','nDpp'].forEach(id=>document.getElementById(id).value='');
+  ['nNome','nCpf','nTel','nValor','nObs','nDpp','nCampanha','nB94Data','nB94NB','nB94Cessacao'].forEach(id=>document.getElementById(id).value='');
+  ['nB94Triagem','nB94Sit','nB94B31','nB94Doc','nB94TipoAc','nB94Negado'].forEach(id=>document.getElementById(id).value='');
+  toggleB94Alerta(); toggleB94NB(); toggleB94Previdas();
 }
 
 function closeModals(){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('open')); }
