@@ -96,7 +96,6 @@
   .ob-item span { font-size: 13px; }
   .ob-item .when { margin-left: auto; font-size: 11px; color: var(--muted); }
   .ob-item.done span { color: var(--muted); text-decoration: line-through; }
-  .ob-item.bloq { opacity: .45; }
 
   .comment { border-left: 3px solid var(--gold); background: #FAFBFD; border-radius: 0 8px 8px 0; padding: 8px 12px; margin-bottom: 8px; }
   .comment.sys { border-left-color: #B7C0D4; }
@@ -668,8 +667,8 @@ function fillDetail() {
         <input type="date" value="${esc(c.contratoAssinadoEm||'')}" onchange="setContrato(this.value)">
       </div>
     </div>
-    <div class="sec"><h3>Checklist de onboarding <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— sequencial: um item por vez</span></h3>
-      ${c.ob.map((o,i)=>`<div class="ob-item ${o.feito?'done':''} ${!o.feito && i>primeiroPendente ? 'bloq':''}">
+    <div class="sec"><h3>Checklist de onboarding <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— marque em qualquer ordem; conclua todos para avançar</span></h3>
+      ${c.ob.map((o,i)=>`<div class="ob-item ${o.feito?'done':''}">
         <input type="checkbox" ${o.feito?'checked':''} onchange="toggleOb(${i},this.checked)">
         <span>${esc(o.nome)}</span>
         <span class="when">${o.feito&&o.em?fmtD(o.em):''}</span>
@@ -750,14 +749,6 @@ function addDoc(){
 function rmDoc(i){ const c=cur(); if(c){ c.docs.splice(i,1); persist(c); fillDetail(); render(); } }
 function toggleOb(i,v){
   const c=cur(); if(!c) return;
-  if (v && c.ob.slice(0,i).some(o=>!o.feito)) {
-    toast('O checklist segue a ordem: conclua primeiro "' + c.ob.find(o=>!o.feito).nome + '".');
-    fillDetail(); return;
-  }
-  if (!v && c.ob.slice(i+1).some(o=>o.feito)) {
-    toast('Para desmarcar este item, desmarque antes os itens posteriores.');
-    fillDetail(); return;
-  }
   c.ob[i].feito=v; c.ob[i].em=v?Date.now():null; persist(c); fillDetail(); render();
 }
 function addComment(){
