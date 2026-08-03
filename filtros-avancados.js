@@ -29,7 +29,12 @@
       'font-size:11.5px;font-weight:600;cursor:pointer}' +
     '.stat.per{border-color:#C9A24B;background:#FFFDF7}' +
     '.stat.per b{color:#8A6A18}' +
-    'input.filter[type=date]{display:none}';
+    'input.filter[type=date]{display:none}' +
+    '.rank.tipos .rk{cursor:pointer;background:#F7F9FC}' +
+    '.rank.tipos .rk b{color:#24365E}' +
+    '#lblFechados{display:none;align-items:center;gap:6px;font-size:12.5px;color:#1B2A4A;' +
+      'background:#fff;border:1px solid #E2E7F0;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer}' +
+    '#lblFechados input{accent-color:#1B2A4A;width:15px;height:15px;cursor:pointer}';
   document.head.appendChild(st);
 
   /* ------------------------------------------------------------- controles */
@@ -47,20 +52,25 @@
                   '<option value="livre">Data livre…</option></select>');
   var inDe  = el('<input type="date" class="filter" id="fDe" title="Data inicial">');
   var inAte = el('<input type="date" class="filter" id="fAte" title="Data final">');
+  var lblFec = el('<label id="lblFechados" title="Modo fechamento de mês: mostra apenas os casos concluídos">' +
+                  '<input type="checkbox" id="chkFechados" checked> Somente fechados</label>');
+  var chkFec = lblFec.querySelector('input');
   var btnLp = el('<button class="btn btn-ghost" id="btnLimparF" style="display:none">Limpar filtros</button>');
 
   var ancora = document.getElementById('fPend') || document.querySelector('.toolbar select.filter');
   if (!ancora) return;                       // painel fora do formato esperado
-  [selCri, selPer, inDe, inAte, btnLp].forEach(function (n) {
+  [selCri, selPer, inDe, inAte, lblFec, btnLp].forEach(function (n) {
     ancora.parentNode.insertBefore(n, ancora.nextSibling);
     ancora = n;
   });
 
   var elAviso = el('<div class="aviso-per" id="avisoPer"></div>');
   var elRank  = el('<div class="rank" id="ranking"></div>');
+  var elTipos = el('<div class="rank tipos" id="rankTipos"></div>');
   var board = document.getElementById('board');
   board.parentNode.insertBefore(elAviso, board);
   board.parentNode.insertBefore(elRank, board);
+  board.parentNode.insertBefore(elTipos, board);
 
   /* ------------------------------------------------------- datas / período */
   function ini(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime(); }
@@ -133,11 +143,15 @@
   window.concluidoEmDe = concluidoEmDe;
 
   /* ------------------------------------------------------------- filtragem */
-  function passa(c, cri, per) {
+  function passa(c, cri, per, soFec) {
+    if (soFec && c.stage !== 'Concluído') return false;
     if (cri && criadorDe(c) !== cri) return false;
     if (per) { var d = dataRef(c); if (!d || d < per.de || d > per.ate) return false; }
     return true;
   }
+
+  /* Modo fechamento: só vale quando há algum filtro de recorte ativo. */
+  function modoFechamento(cri, per) { return !!((cri || per) && chkFec.checked); }
 
   /* ---------------------------------------------------- render (envelopado) */
   var _render = window.render;
@@ -146,21 +160,25 @@
   window.render = function () {
     if (reentrante || typeof state === 'undefined') return _render.apply(this, arguments);
 
-    var cri = selCri.value, per = periodo();
+    var cri = selCri.value, per = periodo(), fec = modoFechamento(cri, per);
     var todos = state.clients || [];
-    var base = (!cri && !per) ? todos : todos.filter(function (c) { return passa(c, cri, per); });
+    var base = (!cri && !per) ? todos : todos.filter(function (c) { return passa(c, cri, per, fec); });
 
     reentrante = true;
     state.clients = base;
     try { _render.apply(this, arguments); }
     finally { state.clients = todos; reentrante = false; }
 
-    posRender(base, todos, cri, per);
+    /* Nada aqui pode derrubar o painel: se algo falhar, o render original já
+       foi executado e o erro fica apenas no console.                          */
+    try { posRender(base, todos, cri, per, fec); }
+    catch (e) { if (window.console) console.error('[filtros-avancados]', e); }
   };
 
   var rankNomes = [];
+  var tiposNomes = [];
 
-  function posRender(base, todos, cri, per) {
+  function posRender(base, todos, cri, per, fec) {
     var esc0 = (typeof esc === 'function') ? esc : function (s) { return String(s == null ? '' : s); };
 
     /* --- select de cadastradores ------------------------------------- */
@@ -178,22 +196,34 @@
 
     /* --- indicadores do período -------------------------------------- */
     var stats = document.getElementById('stats');
+    var suf = per ? per.label : '(todo o período)';
     if ((per || cri) && stats) {
       var okCri = function (c) { return !cri || criadorDe(c) === cri; };
       var okPer = function (t) { return !per || (t && t >= per.de && t <= per.ate); };
       var qConc = todos.filter(function (c) {
         return okCri(c) && c.stage === 'Concluído' && okPer(concluidoEmDe(c)); }).length;
-      var qNovo = todos.filter(function (c) { return okCri(c) && okPer(c.criadoEm); }).length;
       var qCtr  = todos.filter(function (c) {
         return okCri(c) && c.contratoAssinadoEm &&
                okPer(new Date(c.contratoAssinadoEm + 'T12:00:00').getTime()); }).length;
-      var suf = per ? per.label : '(todo o período)';
+      var qNovo = todos.filter(function (c) { return okCri(c) && okPer(c.criadoEm); }).length;
       var card = function (n, l) {
         return '<div class="stat per"><b>' + n + '</b><span>' + esc0(l) + '</span></div>'; };
-      stats.insertAdjacentHTML('beforeend',
-        card(qConc, 'Benefícios fechados ' + suf) +
-        card(qNovo, 'Novos clientes ' + suf) +
-        card(qCtr,  'Contratos assinados ' + suf));
+
+      /* No modo fechamento os indicadores operacionais do painel saem de cena
+         e ficam apenas os números que interessam para fechar o mês.          */
+      if (fec) {
+        Array.prototype.forEach.call(stats.querySelectorAll('.stat'), function (s) {
+          s.style.display = 'none';
+        });
+        stats.insertAdjacentHTML('beforeend',
+          card(qConc, 'Benefícios fechados ' + suf) +
+          card(qCtr,  'Contratos assinados ' + suf));
+      } else {
+        stats.insertAdjacentHTML('beforeend',
+          card(qConc, 'Benefícios fechados ' + suf) +
+          card(qNovo, 'Novos clientes ' + suf) +
+          card(qCtr,  'Contratos assinados ' + suf));
+      }
     }
 
     /* --- ranking por quem cadastrou ---------------------------------- */
@@ -213,17 +243,39 @@
         }).join('')
       : '';
 
+    /* --- detalhamento por tipo de benefício --------------------------- */
+    if (per || cri) {
+      var porTipo = {};
+      conc.forEach(function (c) { var t = c.tipo || 'Não informado'; porTipo[t] = (porTipo[t] || 0) + 1; });
+      var tp = Object.keys(porTipo).map(function (t) { return [t, porTipo[t]]; })
+        .sort(function (a, b) { return b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'); });
+      tiposNomes = tp.map(function (x) { return x[0]; });
+      var titulo = 'Detalhamento dos ' + conc.length + ' fechados' +
+                   (cri ? ' por ' + cri : '') + ' ' + (per ? per.label : '(todo o período)');
+      elTipos.innerHTML = tp.length
+        ? '<span class="rk-tt">' + esc0(titulo) + '</span>' +
+          tp.map(function (x, i) {
+            return '<span class="rk" onclick="__tpSel(' + i + ')"><b>' + x[1] + '</b> · ' + esc0(x[0]) + '</span>';
+          }).join('')
+        : '';
+    } else {
+      elTipos.innerHTML = '';
+      tiposNomes = [];
+    }
+
     /* --- aviso de filtro ativo --------------------------------------- */
     var ativo = !!(per || cri);
     btnLp.style.display = ativo ? '' : 'none';
+    lblFec.style.display = ativo ? 'inline-flex' : 'none';
     elAviso.style.display = ativo ? 'flex' : 'none';
     if (ativo) {
       var partes = [];
       if (cri) partes.push('cadastrados por <b>' + esc0(cri) + '</b>');
       if (per) partes.push('<b>' + esc0(per.label.replace(/^n[oa]s?\s+/, '')) + '</b>');
-      elAviso.innerHTML = 'Filtro ativo — ' + partes.join(' · ') +
-        '. Concluídos contam pela data de conclusão; as demais etapas, pela data de entrada. ' +
-        (todos.length - base.length) + ' cliente(s) fora do filtro. ' +
+      elAviso.innerHTML = (fec ? 'Fechamento — ' : 'Filtro ativo — ') + partes.join(' · ') +
+        (fec ? '. Mostrando apenas os casos concluídos, pela data de conclusão. '
+             : '. Concluídos contam pela data de conclusão; as demais etapas, pela data de entrada. ') +
+        (todos.length - base.length) + ' cliente(s) fora do recorte. ' +
         '<button onclick="__limparF()">Ver tudo</button>';
     }
 
@@ -291,10 +343,12 @@
   selCri.onchange = atualiza;
   inDe.onchange = atualiza;
   inAte.onchange = atualiza;
+  chkFec.onchange = atualiza;
   selPer.onchange = function () {
     var livre = selPer.value === 'livre';
     inDe.style.display = livre ? 'inline-block' : 'none';
     inAte.style.display = livre ? 'inline-block' : 'none';
+    if (selPer.value) chkFec.checked = true;      // escolher um mês já entra em modo fechamento
     if (livre && !inDe.value && !inAte.value) { inDe.focus(); return; }
     atualiza();
   };
@@ -307,9 +361,21 @@
     atualiza();
   };
 
+  /* Clique num tipo de benefício aciona o filtro de benefício que o painel já tem. */
+  window.__tpSel = function (i) {
+    var t = tiposNomes[i], fT = document.getElementById('fTipo');
+    if (t == null || !fT) return;
+    var existe = Array.prototype.some.call(fT.options, function (o) { return o.value === t; });
+    if (!existe) return;
+    fT.value = (fT.value === t) ? '' : t;
+    atualiza();
+  };
+
   window.__limparF = function () {
     selCri.value = ''; selPer.value = ''; inDe.value = ''; inAte.value = '';
     inDe.style.display = 'none'; inAte.style.display = 'none';
+    chkFec.checked = true;
+    var fT = document.getElementById('fTipo'); if (fT) fT.value = '';
     atualiza();
   };
 })();
