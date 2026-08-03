@@ -34,7 +34,10 @@
     '.rank.tipos .rk b{color:#24365E}' +
     '#lblFechados{display:none;align-items:center;gap:6px;font-size:12.5px;color:#1B2A4A;' +
       'background:#fff;border:1px solid #E2E7F0;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer}' +
-    '#lblFechados input{accent-color:#1B2A4A;width:15px;height:15px;cursor:pointer}';
+    '#lblFechados input{accent-color:#1B2A4A;width:15px;height:15px;cursor:pointer}' +
+    '.aviso-erro{background:#FCE8E6;border-color:#F2C3BF;color:#8C1D18}' +
+    '.aviso-erro button{background:#C5221F}' +
+    '.cm-data-ruim{border-color:#C5221F !important;background:#FCE8E6 !important}';
   document.head.appendChild(st);
 
   /* ------------------------------------------------------------- controles */
@@ -64,10 +67,12 @@
     ancora = n;
   });
 
+  var elDatas = el('<div class="aviso-per aviso-erro" id="avisoDatas"></div>');
   var elAviso = el('<div class="aviso-per" id="avisoPer"></div>');
   var elRank  = el('<div class="rank" id="ranking"></div>');
   var elTipos = el('<div class="rank tipos" id="rankTipos"></div>');
   var board = document.getElementById('board');
+  board.parentNode.insertBefore(elDatas, board);
   board.parentNode.insertBefore(elAviso, board);
   board.parentNode.insertBefore(elRank, board);
   board.parentNode.insertBefore(elTipos, board);
@@ -263,6 +268,24 @@
       tiposNomes = [];
     }
 
+    /* --- cadastros com data fora de faixa ----------------------------- */
+    var ruins = todos.filter(function (c) {
+      return dataRuim(c.contratoAssinadoEm) || dataRuim(c.dpp);
+    });
+    if (ruins.length) {
+      elDatas.style.display = 'flex';
+      elDatas.innerHTML = '<b>Data suspeita:</b> ' + ruins.length +
+        ' cadastro(s) com ano fora de faixa — ' +
+        ruins.slice(0, 4).map(function (c) {
+          var v = dataRuim(c.contratoAssinadoEm) ? c.contratoAssinadoEm : c.dpp;
+          return esc0(c.nome) + ' (' + esc0(v) + ')';
+        }).join(' · ') + (ruins.length > 4 ? ' e outros' : '') +
+        '. Corrija na ficha do cliente, senão o fechamento do mês sai torto.';
+    } else {
+      elDatas.style.display = 'none';
+      elDatas.innerHTML = '';
+    }
+
     /* --- aviso de filtro ativo --------------------------------------- */
     var ativo = !!(per || cri);
     btnLp.style.display = ativo ? '' : 'none';
@@ -280,6 +303,42 @@
     }
 
     decorarTabela();
+  }
+
+  /* ------------------------------------------ validação das datas digitadas */
+  var ANO_MIN = 2015;
+  function anoLimite() { return new Date().getFullYear() + 1; }
+  function dataRuim(v) {
+    if (!v) return false;
+    var a = parseInt(String(v).slice(0, 4), 10);
+    return !(a >= ANO_MIN && a <= anoLimite());
+  }
+  window.dataRuim = dataRuim;
+
+  /* O listener fica no overlay da ficha, em fase de captura: roda ANTES do
+     onchange do próprio campo e impede que um ano inválido seja gravado.     */
+  var ovDet = document.getElementById('ovDetail');
+  if (ovDet) {
+    ovDet.addEventListener('focusin', function (ev) {
+      var t = ev.target;
+      if (t && t.type === 'date') {
+        t.min = ANO_MIN + '-01-01';
+        t.max = anoLimite() + '-12-31';
+      }
+    }, true);
+
+    ovDet.addEventListener('change', function (ev) {
+      var t = ev.target;
+      if (!t || t.type !== 'date' || !dataRuim(t.value)) return;
+      ev.stopPropagation();
+      var digitado = t.value;
+      t.value = t.defaultValue || '';
+      t.classList.add('cm-data-ruim');
+      setTimeout(function () { t.classList.remove('cm-data-ruim'); }, 3000);
+      if (typeof toast === 'function') {
+        toast('Data não gravada: "' + digitado + '" tem o ano fora da faixa. Digite o ano com quatro dígitos (ex.: 2026).');
+      }
+    }, true);
   }
 
   /* ------------------------------------------------- colunas extras na tabela */
