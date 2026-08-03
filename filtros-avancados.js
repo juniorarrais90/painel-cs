@@ -275,12 +275,13 @@
     if (ruins.length) {
       elDatas.style.display = 'flex';
       elDatas.innerHTML = '<b>Data suspeita:</b> ' + ruins.length +
-        ' cadastro(s) com ano fora de faixa — ' +
-        ruins.slice(0, 4).map(function (c) {
+        ' cadastro(s) com ano fora de faixa. Clique para abrir e corrigir: ' +
+        ruins.slice(0, 6).map(function (c) {
+          var campo = dataRuim(c.contratoAssinadoEm) ? 'contrato' : 'parto';
           var v = dataRuim(c.contratoAssinadoEm) ? c.contratoAssinadoEm : c.dpp;
-          return esc0(c.nome) + ' (' + esc0(v) + ')';
-        }).join(' · ') + (ruins.length > 4 ? ' e outros' : '') +
-        '. Corrija na ficha do cliente, senão o fechamento do mês sai torto.';
+          return '<span class="rk" style="margin:0 4px" onclick="__abrirFicha(\'' + esc0(c.id) + '\')">' +
+                 esc0(c.nome) + ' — ' + campo + ': <b>' + esc0(v) + '</b></span>';
+        }).join(' ') + (ruins.length > 6 ? ' e outros' : '');
     } else {
       elDatas.style.display = 'none';
       elDatas.innerHTML = '';
@@ -428,6 +429,11 @@
     if (!existe) return;
     fT.value = (fT.value === t) ? '' : t;
     atualiza();
+  };
+
+  /* Abre a ficha do cliente direto do aviso de data suspeita. */
+  window.__abrirFicha = function (id) {
+    if (typeof openDetail === 'function') openDetail(id);
   };
 
   window.__limparF = function () {
