@@ -861,8 +861,13 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{
 
 /* init */
 document.getElementById('fStage').innerHTML += STAGES.map(s=>`<option>${s}</option>`).join('');
-initLogin();
+// Adiado para o fim do carregamento: deixa conexao-resiliente.js assumir o login antes da 1a chamada.
+document.addEventListener('DOMContentLoaded', function () {
+  if (!window.__csResiliente) console.warn('[painel-cs] conexao-resiliente.js nao carregou: login sem prazo, sem novas tentativas e sem cache da equipe');
+  initLogin();
+});
 </script>
 <script src="filtros-avancados.js"></script>
+<script src="conexao-resiliente.js?v=1"></script>
 </body>
 </html>
