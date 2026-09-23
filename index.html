@@ -849,7 +849,7 @@ async function conferirCpf(){
   try {
     const r = await api('consultarCpf', { cpf: d });
     if (r.advbox) { advbox = r.advbox; nome = r.advbox.nome || nome; }
-    if (r.aviso) aviso = r.aviso;
+    if (r.aviso) aviso = /ADVBOX_API_TOKEN/.test(r.aviso) ? 'Conferência na ADVBOX desligada.' : r.aviso;
     (r.planilha||[]).forEach(f => { if (!fichas.some(x => String(x.id)===String(f.id))) fichas.push(f); });
   } catch(e) {
     // Backend antigo (sem a ação) ou fora do ar: segue só com a planilha da tela.
