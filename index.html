@@ -208,8 +208,9 @@
     <div class="modal-head"><b>Novo cliente — recepção pelo Comercial</b><button class="x" onclick="closeModals()">×</button></div>
     <div class="modal-body">
       <div class="grid2">
-        <div class="fld"><label>Nome completo *</label><input id="nNome"></div>
-        <div class="fld"><label>CPF</label><input id="nCpf" placeholder="000.000.000-00"></div>
+        <div class="fld"><label>CPF *</label><input id="nCpf" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off" maxlength="14" oninput="cpfDigitado(this)" onblur="conferirCpf()" onkeypress="return /\d/.test(event.key) || event.key==='Enter'"></div>
+        <div class="fld"><label>Nome completo *</label><input id="nNome" placeholder="Preenchido pela ADVBOX se o CPF já existir"></div>
+        <div id="cpfStatus" style="grid-column:1 / -1;min-height:18px;font-size:12px;color:#64748b">Digite o CPF para liberar o restante do cadastro.</div>
         <div class="fld"><label>WhatsApp</label><input id="nTel" placeholder="(32) 9 0000-0000"></div>
         <div class="fld"><label>Tipo de caso</label>
           <select id="nTipo" onchange="toggleMat()">
@@ -305,6 +306,26 @@
       <div style="margin-top:16px;display:flex;gap:8px">
         <button class="btn btn-primary" onclick="addClient()">Cadastrar e enviar para a CS</button>
         <button class="btn btn-ghost" onclick="closeModals()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: CPF já cadastrado -->
+<div class="overlay" id="ovCpfDup" style="z-index:1001">
+  <div class="modal" style="max-width:480px" role="dialog" aria-modal="true" aria-labelledby="dupTitulo">
+    <div class="modal-head"><b id="dupTitulo">Cliente já cadastrado</b><button class="x" onclick="fecharDup()">×</button></div>
+    <div class="modal-body">
+      <p style="margin:0 0 10px;font-size:14px"><b>Cliente já cadastrado. Trata-se de novo processo?</b></p>
+      <div id="dupDetalhe" style="font-size:13px;color:#334155;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px"></div>
+      <p style="margin:10px 0 0;font-size:12px;color:#64748b">Se for o mesmo caso já em andamento, cancele e trabalhe na ficha existente. Confirmando, o painel cadastra uma <b>nova ficha</b> vinculada ao mesmo CPF e registra a confirmação no histórico.</p>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px;border:1px solid var(--gold);border-radius:8px;background:#FDFAF2;font-size:13px;font-weight:600;color:var(--navy);cursor:pointer">
+        <input type="checkbox" id="nNovoProcesso" onchange="document.getElementById('btnDupOk').disabled=!this.checked" style="width:17px;height:17px;accent-color:var(--gold);margin-top:1px">
+        <span>Sim, trata-se de <u>novo processo</u> para este cliente.</span>
+      </label>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="fecharDup()">Não, cancelar</button>
+        <button class="btn btn-primary" id="btnDupOk" disabled onclick="confirmarNovoProcesso()">Confirmar e cadastrar</button>
       </div>
     </div>
   </div>
@@ -771,7 +792,104 @@ function delClient(){
 }
 
 /* ===== Novo cliente ===== */
-function openNew(){ document.getElementById('ovNew').classList.add('open'); toggleMat(); toggleCampanha(); }
+function openNew(){ document.getElementById('ovNew').classList.add('open'); toggleMat(); toggleCampanha(); resetCpf(); setTimeout(()=>document.getElementById('nCpf').focus(),50); }
+
+/* ===== CPF: primeiro campo, auto-preenchimento e trava de duplicidade ===== */
+const soDigitos = v => String(v||'').replace(/\D/g,'');
+// Máscara progressiva: só dígitos entram; pontos e traço são colocados sozinhos (000.000.000-00).
+const fmtCpf = v => {
+  const d = soDigitos(v).slice(0,11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return d.slice(0,3)+'.'+d.slice(3);
+  if (d.length <= 9) return d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6);
+  return d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6,9)+'-'+d.slice(9);
+};
+function cpfValido(v){
+  const d = soDigitos(v); if (d.length!==11 || /^(\d)\1{10}$/.test(d)) return false;
+  const dv = (f,p) => { let s=0; for (let i=0;i<f.length;i++) s+=Number(f[i])*(p-i); const r=(s*10)%11; return r===10?0:r; };
+  return dv(d.slice(0,9),10)===Number(d[9]) && dv(d.slice(0,10),11)===Number(d[10]);
+}
+// Estado da conferência do CPF digitado no modal de novo cliente.
+let cpfEstado = { digitos:'', conferido:false, existente:false, fichas:[], advbox:null, novoProcesso:false };
+function resetCpf(){
+  cpfEstado = { digitos:'', conferido:false, existente:false, fichas:[], advbox:null, novoProcesso:false };
+  const n = document.getElementById('nNome'); n.readOnly = false; n.style.background = '';
+  if (n.dataset.auto === '1') { n.value = ''; n.dataset.auto = ''; }
+  const tel = document.getElementById('nTel'); if (tel.dataset.auto === '1') { tel.value = ''; tel.dataset.auto = ''; }
+  document.getElementById('nNovoProcesso').checked = false; document.getElementById('btnDupOk').disabled = true;
+  cpfStatus('Digite o CPF para liberar o restante do cadastro.');
+  travarCampos(true);
+}
+function cpfStatus(html, cor){ const el = document.getElementById('cpfStatus'); el.innerHTML = html; el.style.color = cor || '#64748b'; }
+// Só o CPF fica editável até a conferência voltar (ordem obrigatória do cadastro).
+function travarCampos(bloq){
+  document.querySelectorAll('#ovNew input, #ovNew select, #ovNew textarea, #ovNew .btn-primary').forEach(el => { if (el.id !== 'nCpf') el.disabled = bloq; });
+}
+function cpfDigitado(el){
+  el.value = fmtCpf(el.value); // letras e símbolos colados são descartados
+  const d = soDigitos(el.value);
+  if (d.length < 11) {
+    if (cpfEstado.conferido || cpfEstado.digitos) resetCpf();
+    return;
+  }
+  conferirCpf(); // validação de string completa: 11 dígitos disparam a consulta
+}
+async function conferirCpf(){
+  const d = soDigitos(document.getElementById('nCpf').value);
+  if (d.length !== 11 || cpfEstado.digitos === d) return;
+  cpfEstado = { digitos:d, conferido:false, existente:false, fichas:[], advbox:null, novoProcesso:false };
+  if (!cpfValido(d)) { cpfStatus('⚠ CPF inválido — confira os dígitos.', 'var(--red)'); travarCampos(true); return; }
+  cpfStatus('Conferindo na planilha e na ADVBOX…');
+  // 1) Planilha já carregada na tela (imediato, sem depender do backend).
+  const fichas = state.clients.filter(c => soDigitos(c.cpf) === d)
+    .sort((a,b)=>(b.criadoEm||0)-(a.criadoEm||0))
+    .map(c => ({ id:c.id, nome:c.nome, stage:c.stage||'', tipo:c.tipo||'', criadoEm:c.criadoEm||null, respCS:c.respCS||'' }));
+  let advbox = null, aviso = '', nome = fichas[0] ? fichas[0].nome : '';
+  // 2) Backend: reconfere a planilha e consulta a ADVBOX (GET /customers?identification=).
+  try {
+    const r = await api('consultarCpf', { cpf: d });
+    if (r.advbox) { advbox = r.advbox; nome = r.advbox.nome || nome; }
+    if (r.aviso) aviso = r.aviso;
+    (r.planilha||[]).forEach(f => { if (!fichas.some(x => String(x.id)===String(f.id))) fichas.push(f); });
+  } catch(e) {
+    // Backend antigo (sem a ação) ou fora do ar: segue só com a planilha da tela.
+    aviso = /desconhecida/i.test(e.message) ? 'Backend sem a consulta à ADVBOX (reimplantar o Apps Script).' : 'Sem resposta do backend: conferido só na planilha.';
+  }
+  if (soDigitos(document.getElementById('nCpf').value) !== d) return; // o CPF mudou enquanto consultava
+  cpfEstado = { digitos:d, conferido:true, existente: fichas.length>0 || Boolean(advbox), fichas, advbox, novoProcesso:false };
+  const n = document.getElementById('nNome');
+  if (nome) { n.value = nome; n.dataset.auto = '1'; n.readOnly = Boolean(advbox); n.style.background = advbox ? '#F8FAFC' : ''; }
+  else { if (n.dataset.auto === '1') n.value = ''; n.dataset.auto = ''; n.readOnly = false; n.style.background = ''; }
+  n.oninput = () => { n.dataset.auto = ''; };
+  const tel = document.getElementById('nTel');
+  if (tel.dataset.auto === '1') { tel.value = ''; tel.dataset.auto = ''; }
+  if (advbox && !tel.value && advbox.celular) { tel.value = advbox.celular; tel.dataset.auto = '1'; }
+  travarCampos(false);
+  if (cpfEstado.existente) {
+    const onde = [advbox ? 'ADVBOX' + (advbox.processos && advbox.processos.length ? ' (' + advbox.processos.length + ' processo' + (advbox.processos.length>1?'s':'') + ')' : '') : '',
+                  fichas.length ? 'recepção (' + fichas.length + ' ficha' + (fichas.length>1?'s':'') + ')' : ''].filter(Boolean).join(' e ');
+    cpfStatus('⚠ <b>Cliente já cadastrado</b> em ' + onde + ' — nome preenchido automaticamente. Ao cadastrar, será pedida a confirmação de novo processo.' + (aviso ? ' <i>' + esc(aviso) + '</i>' : ''), '#B4690E');
+  } else {
+    cpfStatus('✓ CPF livre — cliente novo.' + (aviso ? ' <i>' + esc(aviso) + '</i>' : ''), '#1E8E3E');
+    setTimeout(()=>n.focus(), 0);
+  }
+}
+function abrirDup(){
+  const f = cpfEstado.fichas, a = cpfEstado.advbox;
+  const linhas = [];
+  if (a) linhas.push('<b>ADVBOX:</b> ' + esc(a.nome) + (a.processos && a.processos.length ? ' — ' + a.processos.slice(0,3).map(p=>esc(p.numero)).join(', ') + (a.processos.length>3 ? '…' : '') : ' — sem processo vinculado'));
+  f.slice(0,3).forEach(x => linhas.push('<b>Ficha da recepção:</b> ' + esc(x.nome) + ' · ' + esc(x.stage||'') + (x.tipo ? ' · ' + esc(x.tipo) : '') + (x.criadoEm ? ' · ' + fmtD(x.criadoEm) : '')));
+  document.getElementById('dupDetalhe').innerHTML = linhas.join('<br>') || 'CPF ' + fmtCpf(cpfEstado.digitos);
+  document.getElementById('nNovoProcesso').checked = false; document.getElementById('btnDupOk').disabled = true;
+  document.getElementById('ovCpfDup').classList.add('open');
+}
+function fecharDup(){ document.getElementById('ovCpfDup').classList.remove('open'); }
+function confirmarNovoProcesso(){
+  if (!document.getElementById('nNovoProcesso').checked) return;
+  cpfEstado.novoProcesso = true; // flag isNewProcess validada como true
+  fecharDup();
+  addClient();
+}
 function toggleMat(){
   const tipo = document.getElementById('nTipo').value;
   const isMat = tipo === 'Salário-maternidade';
@@ -798,7 +916,14 @@ function toggleB94Previdas(){
   document.getElementById('b94PrevidasField').style.display = nenhuma ? 'block' : 'none';
   document.getElementById('nB94Previdas').checked = nenhuma; // já chega marcado para decisão do advogado
 }
-function addClient(){
+async function addClient(){
+  const cEl = document.getElementById('nCpf');
+  if (!cpfEstado.conferido || !cpfValido(cEl.value)) {
+    cEl.style.borderColor='var(--red)'; cEl.focus(); cEl.oninput=()=>cEl.style.borderColor='';
+    toast('Informe um CPF válido e aguarde a conferência antes de cadastrar.'); return;
+  }
+  // Lógica de exceção: CPF já existe → interrompe a submissão e pede a confirmação no modal.
+  if (cpfEstado.existente && cpfEstado.novoProcesso !== true) { abrirDup(); return; }
   const nEl = document.getElementById('nNome');
   const nome = nEl.value.trim();
   if(!nome){ nEl.style.borderColor='var(--red)'; nEl.focus(); nEl.oninput=()=>nEl.style.borderColor=''; return; }
@@ -814,7 +939,9 @@ function addClient(){
   const c = {
     id: 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     nome,
-    cpf: document.getElementById('nCpf').value.trim(),
+    cpf: fmtCpf(document.getElementById('nCpf').value.trim()),
+    novoProcesso: cpfEstado.existente ? true : false,
+    advboxId: cpfEstado.advbox ? cpfEstado.advbox.id : null,
     tel: document.getElementById('nTel').value.trim(),
     tipo: document.getElementById('nTipo').value,
     via: document.getElementById('nVia').value,
@@ -849,15 +976,26 @@ function addClient(){
     c.comentarios.push({autor:'Sistema',setor:'',texto:`⚠ B94 com situação "${c.b94.situacao}" na data do acidente — segurado sem direito ao auxílio-acidente em regra (art. 18, §1º, Lei 8.213/91). Revisão do jurídico necessária.`,em:Date.now(),sys:true});
   if (c.b94 && c.b94.docMedica==='Nenhuma' && c.b94.previdas)
     c.comentarios.push({autor:'Sistema',setor:'',texto:'Sem documentação médica — marcado para avaliar laudo Previdas (decisão do advogado).',em:Date.now(),sys:true});
+  if (c.novoProcesso) {
+    const onde = [cpfEstado.advbox ? 'ADVBOX' : '', cpfEstado.fichas.length ? 'recepção' : ''].filter(Boolean).join(' e ');
+    c.comentarios.push({autor:'Sistema',setor:'',texto:`⚠ CPF já cadastrado em ${onde} — ${userLabel()} confirmou que se trata de NOVO PROCESSO.`,em:Date.now(),sys:true});
+  }
   c.comentarios.push({autor:'Sistema',setor:'',texto:`Cliente cadastrado por ${userLabel()}${userSetor()?' ('+userSetor()+')':''} e enviado para a CS.`,em:Date.now(),sys:true});
-  state.clients.unshift(c); persist(c); closeModals(); render();
+  // Grava esperando o backend: a trava de duplicidade dele é a barreira final.
+  const btn = document.querySelector('#ovNew .btn-primary');
+  btn.disabled = true; btn.textContent = 'Gravando…'; sync('Salvando…');
+  try { await api('save', { client: c }); sync('Salvo ✓'); }
+  catch(e) { toast('Não cadastrado: ' + e.message); sync('Erro'); btn.disabled = false; btn.textContent = 'Cadastrar e enviar para a CS'; return; }
+  btn.disabled = false; btn.textContent = 'Cadastrar e enviar para a CS';
+  state.clients.unshift(c); closeModals(); render();
+  resetCpf();
   ['nNome','nCpf','nTel','nValor','nObs','nDpp','nCampanha','nB94Data','nB94NB','nB94Cessacao'].forEach(id=>document.getElementById(id).value='');
   ['nB94Triagem','nB94Sit','nB94B31','nB94Doc','nB94TipoAc','nB94Negado'].forEach(id=>document.getElementById(id).value='');
   toggleB94Alerta(); toggleB94NB(); toggleB94Previdas();
 }
 
 function closeModals(){ document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('open')); }
-document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o) closeModals(); }));
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target!==o) return; if (o.id==='ovCpfDup') fecharDup(); else closeModals(); }));
 
 /* init */
 document.getElementById('fStage').innerHTML += STAGES.map(s=>`<option>${s}</option>`).join('');
