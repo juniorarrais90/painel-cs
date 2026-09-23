@@ -334,6 +334,8 @@ function registrar(u, acao, cliente, detalhe) {
 
 /* ============ TESTE MANUAL (menu Executar) ============ */
 function testarConsultaCpf() {
+  // Força o pedido de autorização dos escopos do manifesto (planilha + serviço externo).
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/script.external_request']);
   // Troque pelo CPF de um cliente real para ver o retorno no registro de execução.
   Logger.log(JSON.stringify(consultarCpf('000.000.000-00'), null, 2));
 }

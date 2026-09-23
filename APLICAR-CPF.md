@@ -37,3 +37,12 @@ Pode publicar o front antes do backend: se a ação `consultarCpf` ainda não ex
 tela avisa "Backend sem a consulta à ADVBOX" e confere só na planilha. O backend novo
 também aceita a tela antiga (o `save` só recusa ficha nova com CPF repetido sem a
 confirmação).
+
+## Feito em 23/09/2026
+
+Backend aplicado (Versão 4 da implantação, com `ADVBOX_API_TOKEN` cadastrado) e testado:
+`consultarCpf` devolveu contato e processo da ADVBOX. Lição: a autorização granular do
+Apps Script não incluiu `script.external_request`; foi preciso declarar `oauthScopes` no
+`appsscript.json` (arquivo ao lado) e autorizar numa janela InPrivate só com a conta do
+escritório, porque com várias contas logadas o Google devolve "Não foi possível abrir o
+arquivo" em todos os caminhos de autorização.
