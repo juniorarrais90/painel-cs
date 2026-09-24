@@ -191,6 +191,7 @@
   <div class="modal">
     <div class="modal-head">
       <b id="dName">Cliente</b>
+      <button type="button" class="x" style="margin-left:0;font-size:15px" title="Corrigir o nome do cliente" onclick="focarNome()">✎</button>
       <span class="badge" id="dStage" style="background:#33456F;color:#fff"></span>
       <button class="x" onclick="closeModals()">×</button>
     </div>
@@ -649,6 +650,8 @@ function fillDetail() {
   document.getElementById('dBody').innerHTML = `
     <div class="sec"><h3>Dados do cliente</h3>
       <div class="grid2">
+        <div class="fld" style="grid-column:1/-1"><label>Nome do cliente <span style="font-weight:400">— corrija aqui se veio diferente do cadastro da ADVBOX (confira pelo CPF)</span></label>
+          <input id="dNome" value="${esc(c.nome||'')}" maxlength="160" onchange="renomearCliente(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"></div>
         ${fld(c,'cpf','CPF')} ${fld(c,'tel','WhatsApp')}
         ${fldSel(c,'tipo','Tipo de caso',TIPOS)}
         ${fldSel(c,'via','Via de ingresso',['A definir pelo jurídico','Administrativa','Judicial'])}
@@ -745,6 +748,21 @@ const fldSel = (c,k,l,opts) => `<div class="fld"><label>${l}</label><select onch
   ${opts.map(o=>`<option ${c[k]===o?'selected':''}>${o}</option>`).join('')}
 </select></div>`;
 function setField(k,v){ const c=cur(); if(c){ c[k]=v; persist(c); render(); } }
+/* Corrige o nome do cliente: sobrescreve c.nome, guarda o nome anterior e grava
+   pela mesma action 'save' (o backend regrava o registro inteiro pelo id). */
+function renomearCliente(v){
+  const c=cur(); if(!c) return;
+  const novo=String(v||'').replace(/\s+/g,' ').trim();
+  if(novo.length<2){ toast('Informe o nome do cliente (pelo menos 2 letras).'); fillDetail(); return; }
+  if(novo===c.nome) return;
+  const antigo=c.nome;
+  if(!c.nomeOriginal) c.nomeOriginal=antigo;
+  c.nome=novo;
+  c.comentarios.push({ autor:'Sistema', setor:'', texto:`Nome corrigido de "${antigo}" para "${novo}" por ${userLabel()}${userSetor()?' ('+userSetor()+')':''}.`, em:Date.now(), sys:true });
+  persist(c); fillDetail(); render();
+  toast('Nome corrigido ✓');
+}
+function focarNome(){ const i=document.getElementById('dNome'); if(i){ i.scrollIntoView({block:'center'}); i.focus(); i.select(); } }
 function setKit(k,v){
   const c=cur(); if(!c) return;
   c.kit[k]=v;
